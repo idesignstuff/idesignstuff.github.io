@@ -1,1 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Peoria Marriott Wedding Estimator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 1rem; background:#f5f5f5; }
+    h1 { margin-top: 0; }
+    .layout { display: grid; grid-template-columns: minmax(0,2fr) minmax(280px,1fr); gap: 1rem; }
+    .card { background: #fff; border-radius: 8px; padding: 1rem 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    fieldset { border: none; margin: 0 0 .75rem; padding: 0; }
+    legend { font-weight: 600; margin-bottom: .25rem; }
+    label { display: block; margin: .15rem 0; font-size: 0.9rem; }
+    .inline { display: inline-flex; align-items: center; gap: .25rem; margin-right: .75rem; }
+    input[type="number"], input[type="date"], select { padding: .2rem .35rem; font-size: 0.9rem; }
+    .package { border:1px solid #ddd; border-radius:6px; padding:.5rem .75rem; margin-bottom:.5rem; }
+    .package-header { display:flex; justify-content:space-between; align-items:center; }
+    .pkg-name { font-weight:600; }
+    .pkg-price { font-size:0.85rem; color:#555; }
+    .pkg-desc { font-size:0.8rem; color:#444; margin:.25rem 0 .35rem; }
+    .choices { margin-left: .75rem; margin-bottom:.35rem; }
+    .choices h4 { margin: .25rem 0; font-size:0.85rem; }
+    .pill { display:inline-block; padding:0 .4rem; border-radius:999px; background:#eee; font-size:0.75rem; margin-left:.4rem; }
+    .summary-table { width:100%; border-collapse:collapse; font-size:0.9rem; }
+    .summary-table th, .summary-table td { padding:.25rem .4rem; border-bottom:1px solid #e0e0e0; text-align:right; }
+    .summary-table th:first-child, .summary-table td:first-child { text-align:left; }
+    .summary-table tfoot td { font-weight:600; }
+    .muted { color:#777; font-size:0.8rem; }
+    .highlight { color:#b00020; font-weight:600; }
+    .tag { display:inline-block; padding:0 .35rem; border-radius:4px; font-size:0.7rem; margin-left:.3rem; background:#ffe5e5; color:#b00020; }
+    .section-title { font-weight:600; margin-top:.5rem; margin-bottom:.25rem; }
+    @media (max-width: 800px) {
+      .layout { grid-template-columns: minmax(0, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <h1>Peoria Marriott Wedding Reception Estimator</h1>
+  <p class="muted">
+    Uses Peoria Marriott Pere Marquette wedding menus, catering guide, and your sales agreement
+    (packages, buffet minimums, attendant fees, 23% service charge, 11.5% F&amp;B tax, and $12,000 F&amp;B minimum). [file:3][file:4][file:5]
+  </p>
+
+  <div class="layout">
+    <div class="card">
+      <fieldset>
+        <legend>Event details</legend>
+        <div class="inline">
+          <label>
+            Date:
+            <input type="date" id="eventDate" />
+          </label>
+        </div>
+        <div class="inline">
+          <label>
+            Guest count:
+            <input type="number" id="guestCount" min="1" value="200" />
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Wedding packages</legend>
+        <div id="packageContainer"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Extra buffets / stations (optional)</legend>
+        <div id="extrasContainer"></div>
+        <p class="muted">
+          Buffets under 25 guests incur an extra $5 per person. Stations require an attendant fee
+          and typically assume a 25‑guest minimum. [file:3]
+        </p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Other fees</legend>
+        <label class="inline">
+          <input type="checkbox" id="roomRental" />
+          Ballroom room rental (contracted $550 reduced facility fee). [file:4]
+        </label>
+        <label class="inline">
+          <input type="checkbox" id="bannerFee" />
+          Banner/signage installation ($175). [file:3]
+        </label>
+      </fieldset>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0;">Cost summary</h2>
+      <table class="summary-table" id="summaryTable">
+        <thead>
+          <tr>
+            <th>Item</th>
+            <th>Amount</th>
+          </tr>
+        </thead>
+        <tbody id="summaryBody"></tbody>
+        <tfoot>
+          <tr>
+            <td>Estimated total (incl. tax &amp; service)</td>
+            <td id="grandTotal">$0</td>
+          </tr>
+        </tfoot>
+      </table>
+      <p id="fbMinimumNote" class="muted"></p>
+    </div>
+  </div>
+
+  <script>
+    // --- Data from PDFs -------------------------------------------------------
+
+    const charges = {
+      serviceChargeRate: 0.23,      // 23% service charge [file:3]
+      fbTaxRate: 0.115,             // 11.5% F&B tax [file:5]
+      nonFbTaxRate: 0.095,          // 9.5% non-F&B tax [file:3][file:5]
+      serviceChargeTaxRate: 0.095,  // 9.5% on service charge [file:5]
+      fbMinimumRevenue: 12000,      // F&B minimum in group agreement [file:4]
+      fbShortfallRate: 0.5          // 50% of any shortfall [file:4]
+    };
+
+    const rules = {
+      buffetMinGuests: 25,                    // “Buffets under 25 people...” [file:3]
+      buffetUnderMinSurchargePerPerson: 5.0,  // extra $5/pp [file:3]
+      stationAttendantFee: 75.0,              // stations require an attendant $75 [file:3]
+    };
+
+    const weddingPackages = [
+      {
+        id: "marquette_platinum",
+        name: "Marquette Platinum Package",
+        pricePerPerson: 150,
+        description:
+          "4h hosted top-shelf bar, cheese & charcuterie, dressed meats, fruit & crudités, champagne toast, unlimited house wine, salad, up to three single or one duet entrée, vegetable, starch, coffee/tea.",
+        includes: {
+          bar: "4h hosted top-shelf liquor, beer, soft drinks",
+          horsDoeuvresChoices: 4,
+          saladChoices: ["Arugula", "Caprese", "Champagne Pear"],
+          singleEntrees: [
+            "Seared Swordfish with Lemon Beurre Blanc",
+            "French Cut Chicken Breast with Pan Jus or Herb Creme",
+            "8 oz Filet Mignon in Cranberry Demi-Glace"
+          ],
+          duetEntrees: [
+            "Petite Filet Mignon & Lobster Tail",
+            "Petite Filet Mignon & Grilled Swordfish with Caper & Cream Sauce",
+            "Grilled Swordfish & Grilled Pork Chop with Cranberry Demi-Glace"
+          ],
+          vegetables: [
+            "Green Beans Almondine",
+            "Honeyed Carrots",
+            "Green Peas",
+            "Asparagus",
+            "Roasted Brussels Sprouts"
+          ],
+          starches: [
+            "Herb Crusted New Potatoes",
+            "Roasted Tomato Risotto",
+            "Gnocchi with Herbs & Butter",
+            "Dauphinoise Potatoes"
+          ]
+        },
+        upgradeOptions: [
+          { name: "Platinum Vegetables Upgrade", pricePerPerson: 2.5 },
+          { name: "Platinum Starch Upgrade", pricePerPerson: 2.0 },
+          { name: "Coffee Station Upgrade", pricePerPerson: 5.0 }
+        ]
+      },
+      {
+        id: "marquette_diamond",
+        name: "Marquette Diamond Package",
+        pricePerPerson: 120,
+        description:
+          "4h hosted premium bar, cheese/fruit/vegetable displays, 4 passed hors d’oeuvres, salad, up to three single or one duet entrée, vegetable, starch, coffee/tea.",
+        includes: {
+          bar: "4h hosted premium liquor, beer, wine, soft drinks",
+          horsDoeuvresChoices: 4,
+          saladChoices: ["House", "Spinach", "Caesar", "Quinoa"],
+          singleEntrees: [
+            "Seared Salmon Filet with Lemon Beurre Blanc",
+            "French Cut Chicken Breast with Pan Jus or Herb Creme",
+            "Grilled Pork Chop with Cranberry Demi-Glace"
+          ],
+          duetEntrees: [
+            "Petite Filet Mignon & French Cut Chicken Breast with Herb Creme"
+          ],
+          vegetables: [
+            "Green Beans Almondine",
+            "Honeyed Carrots",
+            "Green Peas",
+            "Steamed Broccoli"
+          ],
+          starches: [
+            "Garlic Mashed Potatoes",
+            "Herb Roasted New Potatoes",
+            "Wild Rice Pilaf"
+          ]
+        },
+        upgradeOptions: [
+          { name: "Filet Mignon Single Entree", pricePerPerson: 15.0 },
+          { name: "Platinum Vegetables Upgrade", pricePerPerson: 2.5 },
+          { name: "Platinum Starch Upgrade", pricePerPerson: 2.0 },
+          { name: "Coffee Station Upgrade", pricePerPerson: 5.0 }
+        ]
+      },
+      {
+        id: "peoria_premium",
+        name: "Peoria Premium Package",
+        pricePerPerson: 100,
+        description:
+          "4h hosted premium bar, 3 passed hors d’oeuvres, salad, one entrée, vegetable, starch, coffee/tea.",
+        includes: {
+          bar: "4h hosted premium liquor, beer, wine, soft drinks",
+          horsDoeuvresChoices: 3,
+          saladChoices: ["House", "Spinach", "Caesar"],
+          singleEntrees: [
+            "Seared Salmon Filet with Lemon Beurre Blanc",
+            "French Cut Chicken Breast with Pan Jus or Herb Creme",
+            "Grilled Pork Chop with Cranberry Demi-Glace"
+          ],
+          vegetables: ["Green Beans Almondine", "Honeyed Carrots", "Green Peas"],
+          starches: [
+            "Garlic Mashed Potatoes",
+            "Herb Crusted New Potatoes",
+            "Wild Rice Pilaf"
+          ]
+        },
+        upgradeOptions: [
+          { name: "Filet Mignon Single Entree", pricePerPerson: 15.0 },
+          { name: "Platinum Vegetables Upgrade", pricePerPerson: 2.5 },
+          { name: "Platinum Starch Upgrade", pricePerPerson: 2.0 },
+          { name: "Coffee Station Upgrade", pricePerPerson: 5.0 }
+        ]
+      },
+      {
+        id: "wedding_essentials",
+        name: "Wedding Essentials Package",
+        pricePerPerson: 75,
+        description:
+          "One bartender with cash premium bar, 3 passed hors d’oeuvres, salad, one entrée, vegetable, starch, coffee/tea.",
+        includes: {
+          bar: "Cash premium liquor, beer, house wines, soft drinks",
+          horsDoeuvresChoices: 3,
+          saladChoices: ["House", "Spinach", "Caesar"],
+          singleEntrees: [
+            "Seared Salmon Filet with Lemon Beurre Blanc",
+            "French Cut Chicken Breast with Pan Jus or Herb Creme"
+          ],
+          vegetables: ["Green Beans Almondine", "Honeyed Carrots", "Green Peas"],
+          starches: [
+            "Garlic Mashed Potatoes",
+            "Herb Crusted New Potatoes",
+            "Wild Rice Pilaf"
+          ]
+        },
+        upgradeOptions: [
+          { name: "Filet Mignon Single Entree", pricePerPerson: 15.0 },
+          { name: "Platinum Vegetables Upgrade", pricePerPerson: 2.5 },
+          { name: "Platinum Starch Upgrade", pricePerPerson: 2.0 },
+          { name: "Coffee Station Upgrade", pricePerPerson: 5.0 }
+        ]
+      },
+      {
+        id: "italian_dinner_buffet",
+        name: "Italian Dinner Buffet",
+        pricePerPerson: 100,
+        description:
+          "4h hosted premium bar, 3 passed hors d’oeuvres, focaccia, tossed salad, seasonal antipasto, multiple pastas and hot dishes, coffee/tea.",
+        requiresMinGuests: 25
+      },
+      {
+        id: "midwest_dinner_buffet",
+        name: "Midwest Dinner Buffet",
+        pricePerPerson: 120,
+        description:
+          "4h hosted premium bar, 3 passed hors d’oeuvres, 3 salads, 3 entrées, 2 vegetables, 2 starches, coffee/tea.",
+        requiresMinGuests: 25
+      }
+    ];
+
+    // A couple of representative extra items from the catering menu. [file:3]
+    const extras = [
+      {
+        id: "late_night_snack",
+        name: "Late-night snack (3 items)",
+        pricePerPerson: 12,
+        isBuffet: true
+      },
+      {
+        id: "mac_cheese_station",
+        name: "Mac & cheese bar station",
+        pricePerPerson: 12,
+        requiresAttendant: true
+      },
+      {
+        id: "nacho_station",
+        name: "Nacho bar station",
+        pricePerPerson: 10,
+        requiresAttendant: true
+      }
+    ];
+
+    // --- Rendering ------------------------------------------------------------
+
+    const packageContainer = document.getElementById("packageContainer");
+    const extrasContainer = document.getElementById("extrasContainer");
+    const guestCountInput = document.getElementById("guestCount");
+    const summaryBody = document.getElementById("summaryBody");
+    const grandTotalCell = document.getElementById("grandTotal");
+    const fbMinimumNote = document.getElementById("fbMinimumNote");
+
+    function renderPackages() {
+      weddingPackages.forEach((pkg, index) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "package";
+
+        const header = document.createElement("div");
+        header.className = "package-header";
+
+        const left = document.createElement("div");
+        const radioId = "pkg_" + pkg.id;
+        left.innerHTML = `
+          <label class="inline">
+            <input type="radio" name="package" value="${pkg.id}" ${
+          index === 0 ? "checked" : ""
+        } />
+            <span class="pkg-name">${pkg.name}</span>
+          </label>
+        `;
+        const right = document.createElement("div");
+        right.innerHTML = `<span class="pkg-price">$${pkg.pricePerPerson.toFixed(
+          0
+        )} / guest</span>`;
+
+        header.appendChild(left);
+        header.appendChild(right);
+        wrapper.appendChild(header);
+
+        const desc = document.createElement("div");
+        desc.className = "pkg-desc";
+        desc.textContent = pkg.description;
+        wrapper.appendChild(desc);
+
+        if (pkg.includes) {
+          const choices = document.createElement("div");
+          choices.className = "choices";
+
+          choices.innerHTML = `
+            <div class="section-title">Selections</div>
+            <div class="muted">Salad, entrée(s), vegetable, and starch are already included in the per-person price; use these for planning only.</div>
+          `;
+
+          const salad = document.createElement("div");
+          salad.innerHTML =
+            "<h4>Salad</h4>" +
+            pkg.includes.saladChoices
+              .map(
+                (s, idx) =>
+                  `<label class="inline"><input type="radio" name="${pkg.id}_salad" ${
+                    idx === 0 ? "checked" : ""
+                  } />${s}</label>`
+              )
+              .join("");
+          choices.appendChild(salad);
+
+          if (pkg.includes.singleEntrees) {
+            const entr = document.createElement("div");
+            entr.innerHTML =
+              "<h4>Entrée</h4>" +
+              pkg.includes.singleEntrees
+                .map(
+                  (e, idx) =>
+                    `<label class="inline"><input type="radio" name="${pkg.id}_entree" ${
+                      idx === 0 ? "checked" : ""
+                    } />${e}</label>`
+                )
+                .join("");
+            choices.appendChild(entr);
+          }
+
+          if (pkg.includes.vegetables) {
+            const veg = document.createElement("div");
+            veg.innerHTML =
+              "<h4>Vegetable</h4>" +
+              pkg.includes.vegetables
+                .map(
+                  (v, idx) =>
+                    `<label class="inline"><input type="radio" name="${pkg.id}_veg" ${
+                      idx === 0 ? "checked" : ""
+                    } />${v}</label>`
+                )
+                .join("");
+            choices.appendChild(veg);
+          }
+
+          if (pkg.includes.starches) {
+            const st = document.createElement("div");
+            st.innerHTML =
+              "<h4>Starch</h4>" +
+              pkg.includes.starches
+                .map(
+                  (v, idx) =>
+                    `<label class="inline"><input type="radio" name="${pkg.id}_starch" ${
+                      idx === 0 ? "checked" : ""
+                    } />${v}</label>`
+                )
+                .join("");
+            choices.appendChild(st);
+          }
+
+          if (pkg.upgradeOptions?.length) {
+            const up = document.createElement("div");
+            up.innerHTML =
+              "<h4>Optional upgrades</h4>" +
+              pkg.upgradeOptions
+                .map(
+                  (u) =>
+                    `<label class="inline"><input type="checkbox" data-upgrade="${pkg.id}" value="${u.name}" data-price="${u.pricePerPerson}" />${u.name} (+$${u.pricePerPerson.toFixed(
+                      2
+                    )}/guest)</label>`
+                )
+                .join("");
+            choices.appendChild(up);
+          }
+
+          wrapper.appendChild(choices);
+        }
+
+        packageContainer.appendChild(wrapper);
+      });
+    }
+
+    function renderExtras() {
+      extras.forEach((ex) => {
+        const lbl = document.createElement("label");
+        lbl.className = "inline";
+        lbl.innerHTML = `
+          <input type="checkbox" data-extra="${ex.id}" />
+          ${ex.name} ($${ex.pricePerPerson.toFixed(2)}/guest)
+          ${ex.isBuffet ? '<span class="pill">Buffet</span>' : ""}
+          ${ex.requiresAttendant ? '<span class="pill">Attendant</span>' : ""}
+        `;
+        extrasContainer.appendChild(lbl);
+      });
+    }
+
+    renderPackages();
+    renderExtras();
+
+    // --- Calculation ----------------------------------------------------------
+
+    function getSelectedPackage() {
+      const selected = document.querySelector('input[name="package"]:checked');
+      if (!selected) return null;
+      return weddingPackages.find((p) => p.id === selected.value) || null;
+    }
+
+    function formatMoney(x) {
+      return "$" + x.toFixed(2);
+    }
+
+    function recalc() {
+      const guestCount = Number(guestCountInput.value) || 0;
+      const roomRentalChecked = document.getElementById("roomRental").checked;
+      const bannerChecked = document.getElementById("bannerFee").checked;
+
+      const lines = [];
+
+      // Package base
+      const pkg = getSelectedPackage();
+      let fbSubtotal = 0;
+
+      if (pkg && guestCount > 0) {
+        const base = pkg.pricePerPerson * guestCount;
+        fbSubtotal += base;
+        lines.push({ label: pkg.name, amount: base, fb: true });
+
+        // Upgrades per guest
+        const upgrades = document.querySelectorAll(
+          `input[type="checkbox"][data-upgrade="${pkg.id}"]:checked`
+        );
+        upgrades.forEach((u) => {
+          const price = Number(u.getAttribute("data-price")) || 0;
+          const amt = price * guestCount;
+          fbSubtotal += amt;
+          lines.push({
+            label: u.value + " (upgrade)",
+            amount: amt,
+            fb: true
+          });
+        });
+      }
+
+      // Extras
+      extras.forEach((ex) => {
+        const cb = document.querySelector(`input[data-extra="${ex.id}"]`);
+        if (cb && cb.checked && guestCount > 0) {
+          const base = ex.pricePerPerson * guestCount;
+          fbSubtotal += base;
+          lines.push({
+            label: ex.name,
+            amount: base,
+            fb: true
+          });
+
+          // Buffet small-group fee
+          if (ex.isBuffet && guestCount < rules.buffetMinGuests) {
+            const surcharge =
+              guestCount * rules.buffetUnderMinSurchargePerPerson;
+            fbSubtotal += surcharge;
+            lines.push({
+              label: ex.name + " small-group buffet fee",
+              amount: surcharge,
+              fb: true,
+              highlight: true
+            });
+          }
+
+          // Attendant fee
+          if (ex.requiresAttendant) {
+            lines.push({
+              label: ex.name + " attendant fee",
+              amount: rules.stationAttendantFee,
+              fb: false,
+              highlight: true
+            });
+          }
+        }
+      });
+
+      // Room rental & banner (non-F&B)
+      if (roomRentalChecked) {
+        lines.push({
+          label: "Ballroom function space facility fee",
+          amount: 550,
+          fb: false
+        }); // reduced fee from agreement [file:4]
+      }
+      if (bannerChecked) {
+        lines.push({
+          label: "Banner / signage installation",
+          amount: 175,
+          fb: false
+        }); // [file:3]
+      }
+
+      // F&B minimum shortfall
+      let shortfallLine = null;
+      if (fbSubtotal < charges.fbMinimumRevenue && fbSubtotal > 0) {
+        const diff = charges.fbMinimumRevenue - fbSubtotal;
+        const penalty = diff * charges.fbShortfallRate;
+        shortfallLine = {
+          label: "Banquet F&B minimum shortfall charge",
+          amount: penalty,
+          fb: false,
+          highlight: true
+        };
+        lines.push(shortfallLine);
+      }
+
+      // Build full financials with service & tax
+      let grandTotal = 0;
+      summaryBody.innerHTML = "";
+
+      lines.forEach((ln) => {
+        const isFb = !!ln.fb;
+        const base = ln.amount;
+        const service = base * charges.serviceChargeRate;
+        const taxRate = isFb ? charges.fbTaxRate : charges.nonFbTaxRate;
+        const tax = base * taxRate;
+        const serviceTax = service * charges.serviceChargeTaxRate;
+        const total = base + service + tax + serviceTax;
+        grandTotal += total;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${ln.label}${
+          ln.highlight ? '<span class="tag">rule triggered</span>' : ""
+        }</td>
+          <td>${formatMoney(total)}</td>
+        `;
+        summaryBody.appendChild(tr);
+      });
+
+      grandTotalCell.textContent = formatMoney(grandTotal);
+
+      if (fbSubtotal === 0) {
+        fbMinimumNote.textContent =
+          "Select at least one food & beverage package to compare against the $12,000 banquet F&B minimum (before tax and service). [file:4]";
+      } else if (shortfallLine) {
+        fbMinimumNote.innerHTML =
+          `Estimated banquet F&B revenue (before tax/service) is ${formatMoney(
+            fbSubtotal
+          )}, below the $${charges.fbMinimumRevenue.toFixed(
+            0
+          )} minimum; a 50% shortfall charge is included in the total. [file:4]`;
+      } else {
+        fbMinimumNote.innerHTML =
+          `Estimated banquet F&B revenue (before tax/service) is ${formatMoney(
+            fbSubtotal
+          )}, which meets or exceeds the $${charges.fbMinimumRevenue.toFixed(
+            0
+          )} minimum. [file:4]`;
+      }
+    }
+
+    document.body.addEventListener("change", recalc);
+    guestCountInput.addEventListener("input", recalc);
+
+    recalc();
+  </script>
+</body>
+</html>
 
