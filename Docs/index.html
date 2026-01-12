@@ -36,6 +36,24 @@
       top: 1rem;
     }
 
+    .sidebar-input {
+      padding: 0 0 1rem 0;
+      margin-bottom: 1rem;
+      border-bottom: 2px solid #eee;
+    }
+
+    .sidebar-input label {
+      font-weight: 600;
+      font-size: 0.85rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .sidebar-input input {
+      width: 80px;
+    }
+
     fieldset {
       border: none;
       margin: 0 0 .75rem;
@@ -192,15 +210,6 @@
 
   <div class="layout">
     <div class="card">
-      <fieldset>
-        <legend>Event details</legend>
-        <div class="inline">
-          <label>
-            Guest count:
-            <input type="number" id="guestCount" min="25" max="650" value="200" />
-          </label>
-        </div>
-      </fieldset>
 
       <fieldset>
         <legend>Wedding packages</legend>
@@ -230,6 +239,12 @@
     </div>
 
     <div class="card sticky-card">
+      <div class="sidebar-input">
+        <label>
+          Guest count:
+          <input type="number" id="guestCount" min="25" max="650" value="200" />
+        </label>
+      </div>
       <h2 style="margin-top:0;">Cost summary</h2>
       <table class="summary-table" id="summaryTable">
         <thead>
