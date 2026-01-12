@@ -1,45 +1,193 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <title>Pere Marquette Event Estimator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 1rem; background:#f5f5f5; }
-    h1 { margin-top: 0; }
-    .layout { display: grid; grid-template-columns: minmax(0,2fr) minmax(280px,1fr); gap: 1rem; }
-    .card { background: #fff; border-radius: 8px; padding: 1rem 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-    fieldset { border: none; margin: 0 0 .75rem; padding: 0; }
-    legend { font-weight: 600; margin-bottom: .25rem; }
-    label { display: block; margin: .15rem 0; font-size: 0.9rem; }
-    .inline { display: inline-flex; align-items: center; gap: .25rem; margin-right: .75rem; }
-    input[type="number"], input[type="date"], select { padding: .2rem .35rem; font-size: 0.9rem; }
-    .package { border:1px solid #ddd; border-radius:6px; padding:.5rem .75rem; margin-bottom:.5rem; }
-    .package-header { display:flex; justify-content:space-between; align-items:center; }
-    .pkg-name { font-weight:600; }
-    .pkg-price { font-size:0.85rem; color:#555; }
-    .pkg-desc { font-size:0.8rem; color:#444; margin:.25rem 0 .35rem; }
-    .choices { margin-left: .75rem; margin-bottom:.35rem; }
-    .choices h4 { margin: .25rem 0; font-size:0.85rem; }
-    .pill { display:inline-block; padding:0 .4rem; border-radius:999px; background:#eee; font-size:0.75rem; margin-left:.4rem; }
-    .summary-table { width:100%; border-collapse:collapse; font-size:0.9rem; }
-    .summary-table th, .summary-table td { padding:.25rem .4rem; border-bottom:1px solid #e0e0e0; text-align:right; }
-    .summary-table th:first-child, .summary-table td:first-child { text-align:left; }
-    .summary-table tfoot td { font-weight:600; }
-    .muted { color:#777; font-size:0.8rem; }
-    .highlight { color:#b00020; font-weight:600; }
-    .tag { display:inline-block; padding:0 .35rem; border-radius:4px; font-size:0.7rem; margin-left:.3rem; background:#ffe5e5; color:#b00020; }
-    .section-title { font-weight:600; margin-top:.5rem; margin-bottom:.25rem; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 1rem;
+      background: #f5f5f5;
+    }
+
+    h1 {
+      margin-top: 0;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+      gap: 1rem;
+      align-items: start;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    }
+
+    .sticky-card {
+      position: sticky;
+      top: 1rem;
+    }
+
+    fieldset {
+      border: none;
+      margin: 0 0 .75rem;
+      padding: 0;
+    }
+
+    legend {
+      font-weight: 600;
+      margin-bottom: .25rem;
+    }
+
+    label {
+      display: block;
+      margin: .15rem 0;
+      font-size: 0.9rem;
+    }
+
+    .inline {
+      display: inline-flex;
+      align-items: center;
+      gap: .25rem;
+      margin-right: .75rem;
+    }
+
+    input[type="number"],
+    input[type="date"],
+    select {
+      padding: .2rem .35rem;
+      font-size: 0.9rem;
+    }
+
+    .package {
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: .5rem .75rem;
+      margin-bottom: .5rem;
+      background: #cccccc;
+      transition: background 0.2s ease;
+    }
+
+    .package.selected {
+      background: #fff;
+      border-color: #999;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    label:has(input:checked) {
+      font-weight: bold;
+    }
+
+    .package-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .pkg-name {
+      font-weight: 600;
+    }
+
+    .pkg-price {
+      font-size: 0.85rem;
+      color: #555;
+    }
+
+    .pkg-desc {
+      font-size: 0.8rem;
+      color: #444;
+      margin: .25rem 0 .35rem;
+    }
+
+    .choices {
+      margin-left: .75rem;
+      margin-bottom: .35rem;
+    }
+
+    .choices h4 {
+      margin: .25rem 0;
+      font-size: 0.85rem;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 0 .4rem;
+      border-radius: 999px;
+      background: #eee;
+      font-size: 0.75rem;
+      margin-left: .4rem;
+    }
+
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    .summary-table th,
+    .summary-table td {
+      padding: .25rem .4rem;
+      border-bottom: 1px solid #e0e0e0;
+      text-align: right;
+    }
+
+    .summary-table th:first-child,
+    .summary-table td:first-child {
+      text-align: left;
+    }
+
+    .summary-table tfoot td {
+      font-weight: 600;
+    }
+
+    .muted {
+      color: #777;
+      font-size: 0.8rem;
+    }
+
+    .highlight {
+      color: #b00020;
+      font-weight: 600;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 0 .35rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      margin-left: .3rem;
+      background: #ffe5e5;
+      color: #b00020;
+    }
+
+    .section-title {
+      font-weight: 600;
+      margin-top: .5rem;
+      margin-bottom: .25rem;
+    }
+
     @media (max-width: 800px) {
-      .layout { grid-template-columns: minmax(0, 1fr); }
+      .layout {
+        grid-template-columns: minmax(0, 1fr);
+      }
     }
   </style>
 </head>
+
 <body>
-  <h1>Peoria Marriott Wedding Reception Estimator</h1>
+  <h1>Pere Marquette Event Estimator</h1>
   <p class="muted">
     Uses Peoria Marriott Pere Marquette wedding menus, catering guide, and your sales agreement
-    (packages, buffet minimums, attendant fees, 23% service charge, 11.5% F&amp;B tax, and $12,000 F&amp;B minimum). [file:3][file:4][file:5]
+    (packages, buffet minimums, attendant fees, 23% service charge, 11.5% F&amp;B tax, and $12,000 F&amp;B minimum).
+    [file:3][file:4][file:5]
   </p>
 
   <div class="layout">
@@ -48,14 +196,8 @@
         <legend>Event details</legend>
         <div class="inline">
           <label>
-            Date:
-            <input type="date" id="eventDate" />
-          </label>
-        </div>
-        <div class="inline">
-          <label>
             Guest count:
-            <input type="number" id="guestCount" min="1" value="200" />
+            <input type="number" id="guestCount" min="25" max="650" value="200" />
           </label>
         </div>
       </fieldset>
@@ -87,7 +229,7 @@
       </fieldset>
     </div>
 
-    <div class="card">
+    <div class="card sticky-card">
       <h2 style="margin-top:0;">Cost summary</h2>
       <table class="summary-table" id="summaryTable">
         <thead>
@@ -99,8 +241,20 @@
         <tbody id="summaryBody"></tbody>
         <tfoot>
           <tr>
-            <td>Estimated total (incl. tax &amp; service)</td>
-            <td id="grandTotal">$0</td>
+            <td>Subtotal (Base)</td>
+            <td id="subtotalBase">$0</td>
+          </tr>
+          <tr>
+            <td>Service Charge (23%)</td>
+            <td id="totalService">$0</td>
+          </tr>
+          <tr>
+            <td>Taxes</td>
+            <td id="totalTax">$0</td>
+          </tr>
+          <tr>
+            <td><strong>Estimated total (incl. tax &amp; service)</strong></td>
+            <td><strong id="grandTotal">$0</strong></td>
           </tr>
         </tfoot>
       </table>
@@ -307,6 +461,9 @@
     const extrasContainer = document.getElementById("extrasContainer");
     const guestCountInput = document.getElementById("guestCount");
     const summaryBody = document.getElementById("summaryBody");
+    const subtotalBaseCell = document.getElementById("subtotalBase");
+    const totalServiceCell = document.getElementById("totalService");
+    const totalTaxCell = document.getElementById("totalTax");
     const grandTotalCell = document.getElementById("grandTotal");
     const fbMinimumNote = document.getElementById("fbMinimumNote");
 
@@ -322,9 +479,8 @@
         const radioId = "pkg_" + pkg.id;
         left.innerHTML = `
           <label class="inline">
-            <input type="radio" name="package" value="${pkg.id}" ${
-          index === 0 ? "checked" : ""
-        } />
+            <input type="radio" name="package" value="${pkg.id}" ${index === 0 ? "checked" : ""
+          } />
             <span class="pkg-name">${pkg.name}</span>
           </label>
         `;
@@ -357,8 +513,7 @@
             pkg.includes.saladChoices
               .map(
                 (s, idx) =>
-                  `<label class="inline"><input type="radio" name="${pkg.id}_salad" ${
-                    idx === 0 ? "checked" : ""
+                  `<label class="inline"><input type="radio" name="${pkg.id}_salad" ${idx === 0 ? "checked" : ""
                   } />${s}</label>`
               )
               .join("");
@@ -371,8 +526,7 @@
               pkg.includes.singleEntrees
                 .map(
                   (e, idx) =>
-                    `<label class="inline"><input type="radio" name="${pkg.id}_entree" ${
-                      idx === 0 ? "checked" : ""
+                    `<label class="inline"><input type="radio" name="${pkg.id}_entree" ${idx === 0 ? "checked" : ""
                     } />${e}</label>`
                 )
                 .join("");
@@ -386,8 +540,7 @@
               pkg.includes.vegetables
                 .map(
                   (v, idx) =>
-                    `<label class="inline"><input type="radio" name="${pkg.id}_veg" ${
-                      idx === 0 ? "checked" : ""
+                    `<label class="inline"><input type="radio" name="${pkg.id}_veg" ${idx === 0 ? "checked" : ""
                     } />${v}</label>`
                 )
                 .join("");
@@ -401,8 +554,7 @@
               pkg.includes.starches
                 .map(
                   (v, idx) =>
-                    `<label class="inline"><input type="radio" name="${pkg.id}_starch" ${
-                      idx === 0 ? "checked" : ""
+                    `<label class="inline"><input type="radio" name="${pkg.id}_starch" ${idx === 0 ? "checked" : ""
                     } />${v}</label>`
                 )
                 .join("");
@@ -560,7 +712,11 @@
       }
 
       // Build full financials with service & tax
+      let totalBase = 0;
+      let totalService = 0;
+      let totalTaxCombined = 0;
       let grandTotal = 0;
+
       summaryBody.innerHTML = "";
 
       lines.forEach((ln) => {
@@ -570,19 +726,26 @@
         const taxRate = isFb ? charges.fbTaxRate : charges.nonFbTaxRate;
         const tax = base * taxRate;
         const serviceTax = service * charges.serviceChargeTaxRate;
+
         const total = base + service + tax + serviceTax;
+
+        totalBase += base;
+        totalService += service;
+        totalTaxCombined += (tax + serviceTax);
         grandTotal += total;
 
         const tr = document.createElement("tr");
         tr.innerHTML = `
-          <td>${ln.label}${
-          ln.highlight ? '<span class="tag">rule triggered</span>' : ""
-        }</td>
-          <td>${formatMoney(total)}</td>
+          <td>${ln.label}${ln.highlight ? '<span class="tag">rule triggered</span>' : ""
+          }</td>
+          <td>${formatMoney(base)}</td>
         `;
         summaryBody.appendChild(tr);
       });
 
+      subtotalBaseCell.textContent = formatMoney(totalBase);
+      totalServiceCell.textContent = formatMoney(totalService);
+      totalTaxCell.textContent = formatMoney(totalTaxCombined);
       grandTotalCell.textContent = formatMoney(grandTotal);
 
       if (fbSubtotal === 0) {
@@ -603,6 +766,16 @@
             0
           )} minimum. [file:4]`;
       }
+
+      // Update visual selection
+      document.querySelectorAll(".package").forEach((p) => {
+        const radio = p.querySelector('input[name="package"]');
+        if (radio && radio.checked) {
+          p.classList.add("selected");
+        } else {
+          p.classList.remove("selected");
+        }
+      });
     }
 
     document.body.addEventListener("change", recalc);
@@ -611,5 +784,5 @@
     recalc();
   </script>
 </body>
-</html>
 
+</html>
